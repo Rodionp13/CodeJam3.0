@@ -16,9 +16,11 @@
 @property(retain, nonatomic) UIButton* refreshBttn;
 @property(retain, nonatomic) NSArray* ulrS;
 @property(retain, nonatomic) NSArray* imgS;
+@property(retain, nonatomic) NSMutableArray *downloadedImages;
 
 - (void) downloadImages;
-//- (void) downloadGroupImages;
+- (void) downloadGroupImages:(NSMutableArray *)imageViewsArr;
+- (void) updateUI;
 
 @end
 
@@ -27,12 +29,15 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    self.ulrS = [NSArray arrayWithObjects:@"https://pp.userapi.com/c844724/v844724516/6b674/fNIzsBm73r4.jpg",
+                 @"https://pp.userapi.com/c635102/v635102883/297ed/MBDak0YH2U8.jpg",
+                 @"https://sun9-5.userapi.com/c840730/v840730536/88a76/GA2ug4oPOPs.jpg", nil];
+    
     CGFloat width = self.view.bounds.size.width;
     CGFloat height = self.view.bounds.size.height / 4;
 
     // 1
     UIView *v1 = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, height)];
-//    [v1 setBackgroundColor:UIColor.redColor];
     [self.view addSubview:v1];
     [self setView1:v1];
     
@@ -137,7 +142,8 @@
     [v4 addSubview:img41];
     [v4 addSubview:img42];
     [v4 addSubview:img43];
-
+    
+    self.imgS = [NSArray arrayWithObjects:img1,img2,img3, nil];
     
     
     self.refreshBttn = [UIButton buttonWithType:UIButtonTypeRoundedRect];
@@ -156,45 +162,21 @@
 
 
 
-    self.ulrS = [NSArray arrayWithObjects:@"https://pp.userapi.com/c844724/v844724516/6b674/fNIzsBm73r4.jpg",
-                          @"https://pp.userapi.com/c635102/v635102883/297ed/MBDak0YH2U8.jpg",
-                          @"https://sun9-5.userapi.com/c840730/v840730536/88a76/GA2ug4oPOPs.jpg", nil];
     
-    self.imgS = [NSArray arrayWithObjects:img1,img2,img3, nil];
-
     
-    //group
-//    NSArray *arrOfURL2 = [NSArray arrayWithObjects:@"https://pp.userapi.com/c824411/v824411454/157843/5g3jhGSjGNo.jpg"
-//                          @"https://pp.userapi.com/c845324/v845324309/69b47/4tvKc5FXwlk.jpg"
-//                          @"https://pp.userapi.com/c834302/v834302366/1567c3/Er12YQ2FW4c.jpg", nil];
-//    NSArray *arrOfImages2 = [NSArray arrayWithObjects:img41,img42,img43, nil];
-//
-//
-//    NSMutableArray<NSData*> *dataArrForImages = [[NSMutableArray alloc] init];
-//
-//    dispatch_group_t group = dispatch_group_create();
-//
-//    dispatch_group_async(group, dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-//        for(int i = 0; i < arrOfURL2.count; i++) {
-//            dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-//                NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:[arrOfURL2 objectAtIndex:i]]];
-//                [dataArrForImages addObject:data];
-//            });
-//        }
-//    });
-//
-//    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
-//        for(int i = 0; i < dataArrForImages.count; i++) {
-//
-//            if([dataArrForImages objectAtIndex:i]) {
-//        [[arrOfImages2 objectAtIndex:i] setImage: [UIImage imageWithData:[dataArrForImages objectAtIndex:i]]];
-//            }
-//        }
-//    });
+    NSMutableArray *mutArr = [NSMutableArray arrayWithCapacity:self.ulrS.count];
+    [self setDownloadedImages:mutArr];
+    
+    
+    NSMutableArray *groupImages = [NSMutableArray arrayWithObjects:img41,img42,img43, nil];
+    [self downloadGroupImages:groupImages];
     
     [img1 release];
     [img2 release];
     [img3 release];
+    [img41 release];
+    [img42 release];
+    [img43 release];
     [label1 release];
     [label2 release];
     [label3 release];
@@ -212,15 +194,56 @@
 
 
 - (void) downloadImages {
-    for(int i = 0; i < self.ulrS.count; i++) {
+    __weak typeof (self) weakSelf = self;
+    for(int i = 0; i < 3; i++) {
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
-            NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:[self.ulrS objectAtIndex:i]]];
-            
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[self.imgS objectAtIndex:i] setImage: [UIImage imageWithData:data]];
-            });
+            NSData *dataImage = [NSData dataWithContentsOfURL:[NSURL URLWithString:[weakSelf.ulrS objectAtIndex:i]]];
+            [weakSelf.downloadedImages addObject:dataImage];
+            NSLog(@"%i downloaded", i);
         });
     }
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if(weakSelf.downloadedImages.count <= 3) {
+            [weakSelf updateUI];
+        }
+        
+//        NSLog(@"BEFORE %lu", weakSelf.downloadedImages.count);
+        [weakSelf.downloadedImages removeAllObjects];
+//        NSLog(@"AFTER %lu", weakSelf.downloadedImages.count);
+    });
+}
+
+- (void)updateUI {
+    __weak typeof (self) weakSelf = self;
+    for(int i = 0; i < weakSelf.downloadedImages.count; i++) {
+        if(i == 3) {
+            [[weakSelf.imgS objectAtIndex:i - 1] setImage:[UIImage imageWithData:[weakSelf.downloadedImages objectAtIndex:i]]];
+        } else {
+            [[weakSelf.imgS objectAtIndex:i] setImage:[UIImage imageWithData:[weakSelf.downloadedImages objectAtIndex:i]]];
+        }
+    }
+}
+
+- (void) downloadGroupImages:(NSMutableArray *)imageViewsArr {
+    dispatch_group_t group = dispatch_group_create();
+    __weak typeof (self) weakSelf = self;
+    for(int i = 0; i < 3; i++) {
+        dispatch_group_enter(group);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+            NSData *dataImage = [NSData dataWithContentsOfURL:[NSURL URLWithString:[weakSelf.ulrS objectAtIndex:i]]];
+            [weakSelf.downloadedImages addObject:dataImage];
+            NSLog(@"%i data downloaded", i);
+            dispatch_group_leave(group);
+        });
+    }
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
+        for(int i = 0; i < 3; i++) {
+            [[imageViewsArr objectAtIndex:i] setImage:[UIImage imageWithData:[weakSelf.downloadedImages objectAtIndex:i]]];
+        }
+//        [weakSelf.downloadedImages removeAllObjects];
+    });
+    dispatch_release(group);
+    
 }
 
 - (void) dealloc {
@@ -231,6 +254,7 @@
     [_refreshBttn release];
     [_ulrS release];
     [_imgS release];
+    [_downloadedImages release];
     [super dealloc];
 }
 
